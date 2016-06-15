@@ -86,7 +86,12 @@ def fetch(url, http, cache=False, force_download=False, wsdl_basedir='', headers
 
 def sort_dict(od, d):
     """Sort parameters (same order as xsd:sequence)"""
-    if isinstance(od, dict):
+    if len(d.keys()) == 0:
+        ret = Struct()
+        for k in od.keys():
+            ret[k] = od[k]
+        return ret
+    elif isinstance(od, dict):
         ret = Struct()
         for k in od.keys():
             v = d.get(k)
