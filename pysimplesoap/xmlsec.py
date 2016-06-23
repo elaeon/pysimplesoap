@@ -29,10 +29,8 @@ except ImportError:
 #  * Sign, Verify, Encrypt & Decrypt XML documents
 
 # Enveloping templates ("by reference": signature is parent):
+
 SIGN_REF_TMPL = """
-<SignedInfo xmlns="http://www.w3.org/2000/09/xmldsig#">
-  <CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" />
-  <SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1" />
   <Reference URI="%(ref_uri)s">
     <Transforms>
       <Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" />
@@ -40,7 +38,6 @@ SIGN_REF_TMPL = """
     <DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1" />
     <DigestValue>%(digest_value)s</DigestValue>
   </Reference>
-</SignedInfo>
 """
 SIGNED_TMPL = """
 <?xml version="1.0" encoding="UTF-8"?>

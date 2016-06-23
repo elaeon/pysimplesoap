@@ -253,7 +253,9 @@ class SoapClient(object):
                                     self.__headers, soap_uri)
 
         self.xml_request = request.as_xml()
+        print(self.xml_request)
         self.xml_response = self.send(method, self.xml_request)
+        print(self.xml_response)
         response = SimpleXMLElement(self.xml_response, namespace=self.namespace,
                                     jetty=self.__soap_server in ('jetty',))
         if self.exceptions and response("Fault", ns=list(soap_namespaces.values()), error=False):
@@ -860,7 +862,7 @@ class SoapClient(object):
 
         wsdl = self._url_to_xml_tree(url, cache, force_download)
         services = self._xml_tree_to_services(wsdl, cache, force_download)
-
+        #print(services)
         # dump the full service/port/operation map
         #log.debug(pprint.pformat(services))
 

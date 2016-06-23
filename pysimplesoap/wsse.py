@@ -124,13 +124,39 @@ BIN_TOKEN_TMPL = """<?xml version="1.0" encoding="UTF-8"?>
 </wsse:Security>
 """
 
+BIN_TOKEN_TS_TMPL = """<?xml version="1.0" encoding="UTF-8"?>
+<wsse:Security soapenv:mustUnderstand="1" xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd">
+    <wsu:Timestamp xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd" wsu:Id="_0">
+            <wsu:Created>%(created)s</wsu:Created>
+            <wsu:Expires>%(expires)s</wsu:Expires>
+        </wsu:Timestamp>
+    <wsse:BinarySecurityToken EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary" ValueType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3" wsu:Id="CertId-45851B081998E431E8132880700036719" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd">
+%(certificate)s</wsse:BinarySecurityToken>
+    <ds:Signature Id="Signature-13" xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+        <SignedInfo xmlns="http://www.w3.org/2000/09/xmldsig#">
+        <CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" />
+        <SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1" />
+        %(signed_info)s
+        </SignedInfo>
+        <ds:SignatureValue>%(signature_value)s</ds:SignatureValue>
+        <ds:KeyInfo Id="KeyId-45851B081998E431E8132880700036720">
+            <wsse:SecurityTokenReference wsu:Id="STRId-45851B081998E431E8132880700036821" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd">
+                <wsse:Reference URI="#CertId-45851B081998E431E8132880700036719" ValueType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3"/>
+            </wsse:SecurityTokenReference>
+        </ds:KeyInfo>
+    </ds:Signature>
+</wsse:Security>
+"""
+
 class BinaryTokenSignature:
     "WebService Security extension to add a basic signature to xml request"
 
     def __init__(self, certificate="", private_key="", password=None, cacert=None):
         # read the X509v3 certificate (PEM)
-        self.certificate = ''.join([line for line in open(certificate)
-                                         if not line.startswith("---")])
+        #self.certificate = ''.join([line for line in open(certificate)
+        #                                 if not line.startswith("---")])
+        with open("/home/agmartinez/Timbrado INMEGEN/Datos_Prueba_WS-Nomina_INMEGEN/FIEL_AIS8012085L7/archivo.pfx.b64", 'r') as f:
+            self.certificate = f.read()
         self.private_key = private_key
         self.password = password
         self.cacert = cacert
@@ -151,11 +177,18 @@ class BinaryTokenSignature:
         ref_xml = repr(body)
         # sign using RSA-SHA1 (XML Security)
         from . import xmlsec
-        vars = xmlsec.rsa_sign(ref_xml, "#id-14", 
-                               self.private_key, self.password)
-        vars['certificate'] = self.certificate
+        vars1 = xmlsec.rsa_sign(ref_xml, "#id-14", self.private_key, self.password)
+        vars1['certificate'] = self.certificate
         # generate the xml (filling the placeholders)
-        wsse = SimpleXMLElement(BIN_TOKEN_TMPL % vars)
+        created = datetime.datetime.utcnow()
+        vars1['created'] = created.strftime("%Y-%m-%dT%H:%M:%SZ")
+        vars1['expires'] = (created + datetime.timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        wsse = SimpleXMLElement(BIN_TOKEN_TS_TMPL % vars1)
+        #header.import_node(wsse)
+        ref_time_xml = repr(wsse('wsu:Timestamp'))
+        vars2 = xmlsec.rsa_sign(ref_time_xml, "#_0", self.private_key, self.password)
+        vars1["signed_info"] = vars1["signed_info"] + vars2["signed_info"]
+        wsse = SimpleXMLElement(BIN_TOKEN_TS_TMPL % vars1)
         header.import_node(wsse)
 
     def postprocess(self, client, response, method, args, kwargs, headers, soap_uri):
