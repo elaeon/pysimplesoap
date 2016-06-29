@@ -155,8 +155,7 @@ class BinaryTokenSignature:
         # read the X509v3 certificate (PEM)
         #self.certificate = ''.join([line for line in open(certificate)
         #                                 if not line.startswith("---")])
-        with open("/home/agmartinez/Timbrado INMEGEN/Datos_Prueba_WS-Nomina_INMEGEN/FIEL_AIS8012085L7/archivo.pfx.b64", 'r') as f:
-            self.certificate = f.read()
+        self.certificate = certificate
         self.private_key = private_key
         self.password = password
         self.cacert = cacert

@@ -201,6 +201,7 @@ class SoapClient(object):
             parameters = list(kwargs.items())
         else:
             parameters = args
+
         if parameters and isinstance(parameters[0], SimpleXMLElement):
             body = request('Body', ns=list(soap_namespaces.values()),)
             # remove default body parameter (method name)
@@ -242,6 +243,7 @@ class SoapClient(object):
                     header.import_node(v)
                 else:
                     header.marshall(k, v, ns=self.__ns, add_children_ns=False)
+
         if request_headers:
             header = request('Header', ns=list(soap_namespaces.values()),)
             for subheader in request_headers.children():
@@ -255,7 +257,7 @@ class SoapClient(object):
         self.xml_request = request.as_xml()
         print(self.xml_request)
         self.xml_response = self.send(method, self.xml_request)
-        print(self.xml_response)
+        #print(self.xml_response)
         response = SimpleXMLElement(self.xml_response, namespace=self.namespace,
                                     jetty=self.__soap_server in ('jetty',))
         if self.exceptions and response("Fault", ns=list(soap_namespaces.values()), error=False):

@@ -66,7 +66,9 @@ class SimpleXMLElement(object):
         """Adding a child tag to a node"""
         if not ns or self.__ns is False:
             ##log.debug('adding %s without namespace', name)
-            element = self.__document.createElement(name)
+            #element = self.__document.createElement(name)
+            element = self.__document.createElementNS(self.__ns, "%s:%s" % ("h", name))
+            element.setAttribute("xmlns:h", "http://tempuri.org/")
         else:
             ##log.debug('adding %s ns "%s" %s', name, self.__ns, ns)
             if isinstance(ns, basestring):
@@ -470,7 +472,6 @@ class SimpleXMLElement(object):
         """Analyze python value and add the serialized XML element using tag name"""
         # Change node name to that used by a client
         name = self._update_ns(name)
-
         if isinstance(value, dict):  # serialize dict (<key>value</key>)
             # for the first parent node, use the document target namespace
             # (ns==True) or use the namespace string uri if passed (elements)
