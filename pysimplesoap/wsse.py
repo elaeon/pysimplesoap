@@ -126,7 +126,7 @@ BIN_TOKEN_TMPL = """<?xml version="1.0" encoding="UTF-8"?>
 
 BIN_TOKEN_TS_TMPL = """<?xml version="1.0" encoding="UTF-8"?>
 <wsse:Security soapenv:mustUnderstand="1" xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd">
-    <wsu:Timestamp xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd" wsu:Id="_0">
+    <wsu:Timestamp xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd" wsu:Id="t0">
             <wsu:Created>%(created)s</wsu:Created>
             <wsu:Expires>%(expires)s</wsu:Expires>
         </wsu:Timestamp>
@@ -153,9 +153,9 @@ class BinaryTokenSignature:
 
     def __init__(self, certificate="", private_key="", password=None, cacert=None):
         # read the X509v3 certificate (PEM)
-        #self.certificate = ''.join([line for line in open(certificate)
-        #                                 if not line.startswith("---")])
-        self.certificate = certificate
+        self.certificate = ''.join([line for line in open(certificate)
+                                         if not line.startswith("---")])
+        #self.certificate = certificate
         self.private_key = private_key
         self.password = password
         self.cacert = cacert
@@ -185,7 +185,7 @@ class BinaryTokenSignature:
         wsse = SimpleXMLElement(BIN_TOKEN_TS_TMPL % vars1)
         #header.import_node(wsse)
         ref_time_xml = repr(wsse('wsu:Timestamp'))
-        vars2 = xmlsec.rsa_sign(ref_time_xml, "#_0", self.private_key, self.password)
+        vars2 = xmlsec.rsa_sign(ref_time_xml, "#t0", self.private_key, self.password)
         vars1["signed_info"] = vars1["signed_info"] + vars2["signed_info"]
         wsse = SimpleXMLElement(BIN_TOKEN_TS_TMPL % vars1)
         header.import_node(wsse)
