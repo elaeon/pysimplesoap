@@ -110,12 +110,13 @@ class UsernameDigestToken(UsernameToken):
 
 BIN_TOKEN_TMPL = """<?xml version="1.0" encoding="UTF-8"?>
 <wsse:Security soapenv:mustUnderstand="1" xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd">
+%(timestamp)s
     <wsse:BinarySecurityToken EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary" ValueType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3" wsu:Id="CertId-45851B081998E431E8132880700036719" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd">
 %(certificate)s</wsse:BinarySecurityToken>
     <ds:Signature Id="Signature-13" xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
         %(signed_info)s
         <ds:SignatureValue>%(signature_value)s</ds:SignatureValue>
-        <ds:KeyInfo Id="KeyId-45851B081998E431E8132880700036720">
+        <ds:KeyInfo>
             <wsse:SecurityTokenReference wsu:Id="STRId-45851B081998E431E8132880700036821" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd">
                 <wsse:Reference URI="#CertId-45851B081998E431E8132880700036719" ValueType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3"/>
             </wsse:SecurityTokenReference>
@@ -124,27 +125,33 @@ BIN_TOKEN_TMPL = """<?xml version="1.0" encoding="UTF-8"?>
 </wsse:Security>
 """
 
-BIN_TOKEN_TS_TMPL = """<?xml version="1.0" encoding="UTF-8"?>
+#SIGNED_INFO_TMPL = """<SignedInfo>
+#<CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+#<SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/>
+#%(signed_info)s
+#</SignedInfo>"""
+
+SIGNED_INFO_TMPL = """<SignedInfo>
+<CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n">
+<InclusiveNamespaces PrefixList="wsse soapenv" />
+</CanonicalizationMethod>
+<SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/>%(signed_info)s</SignedInfo>"""
+
+TIMESTAMP_TMPL = """<wsu:Timestamp xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd" wsu:Id="t0">
+    <wsu:Created>%(created)s</wsu:Created>
+    <wsu:Expires>%(expires)s</wsu:Expires>
+</wsu:Timestamp>"""
+
+#TIMESTAMP_TMPL = """<Timestamp Id="t0">
+#    <Created>%(created)s</Created>
+#    <Expires>%(expires)s</Expires>
+#</Timestamp>"""
+
+CLEAN_TMPL = """<?xml version="1.0" encoding="UTF-8"?>
 <wsse:Security soapenv:mustUnderstand="1" xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd">
-    <wsu:Timestamp xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd" wsu:Id="t0">
-            <wsu:Created>%(created)s</wsu:Created>
-            <wsu:Expires>%(expires)s</wsu:Expires>
-        </wsu:Timestamp>
+%(timestamp)s
     <wsse:BinarySecurityToken EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary" ValueType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3" wsu:Id="CertId-45851B081998E431E8132880700036719" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd">
 %(certificate)s</wsse:BinarySecurityToken>
-    <ds:Signature Id="Signature-13" xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
-        <SignedInfo xmlns="http://www.w3.org/2000/09/xmldsig#">
-        <CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" />
-        <SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1" />
-        %(signed_info)s
-        </SignedInfo>
-        <ds:SignatureValue>%(signature_value)s</ds:SignatureValue>
-        <ds:KeyInfo Id="KeyId-45851B081998E431E8132880700036720">
-            <wsse:SecurityTokenReference wsu:Id="STRId-45851B081998E431E8132880700036821" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd">
-                <wsse:Reference URI="#CertId-45851B081998E431E8132880700036719" ValueType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3"/>
-            </wsse:SecurityTokenReference>
-        </ds:KeyInfo>
-    </ds:Signature>
 </wsse:Security>
 """
 
@@ -153,12 +160,17 @@ class BinaryTokenSignature:
 
     def __init__(self, certificate="", private_key="", password=None, cacert=None):
         # read the X509v3 certificate (PEM)
-        self.certificate = ''.join([line for line in open(certificate)
-                                         if not line.startswith("---")])
-        #self.certificate = certificate
+        #self.certificate = ''.join([line for line in open(certificate)
+        #                                 if not line.startswith("---")])
+        with open(certificate, 'r') as f:
+            pem = f.read()
+            pem = pem.replace(" ",'').split()
+            self.certificate = ''.join(pem[1:-1])
+        
         self.private_key = private_key
         self.password = password
         self.cacert = cacert
+        self.certfile = certificate
 
     def preprocess(self, client, request, method, args, kwargs, headers, soap_uri):
         "Sign the outgoing SOAP request"
@@ -176,18 +188,22 @@ class BinaryTokenSignature:
         ref_xml = repr(body)
         # sign using RSA-SHA1 (XML Security)
         from . import xmlsec
-        vars1 = xmlsec.rsa_sign(ref_xml, "#id-14", self.private_key, self.password)
-        vars1['certificate'] = self.certificate
-        # generate the xml (filling the placeholders)
+        stack = []
+        timestamp_data = {}
         created = datetime.datetime.utcnow()
-        vars1['created'] = created.strftime("%Y-%m-%dT%H:%M:%SZ")
-        vars1['expires'] = (created + datetime.timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        wsse = SimpleXMLElement(BIN_TOKEN_TS_TMPL % vars1)
-        #header.import_node(wsse)
-        ref_time_xml = repr(wsse('wsu:Timestamp'))
-        vars2 = xmlsec.rsa_sign(ref_time_xml, "#t0", self.private_key, self.password)
-        vars1["signed_info"] = vars1["signed_info"] + vars2["signed_info"]
-        wsse = SimpleXMLElement(BIN_TOKEN_TS_TMPL % vars1)
+        timestamp_data['created'] = created.strftime("%Y-%m-%dT%H:%M:%SZ")
+        timestamp_data['expires'] = (created + datetime.timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        ref_time_xml = TIMESTAMP_TMPL % timestamp_data
+        #ref_xml = xmlsec._sign_node(stack, "#id-14", ref_xml)
+        ref_time_xml = xmlsec._sign_node(stack, "#t0", ref_time_xml)
+        signed_info = SIGNED_INFO_TMPL % {"signed_info": "".join(stack)}
+        to_sign = xmlsec.canonicalize(signed_info)
+        vars1 = xmlsec.rsa_sign_(to_sign, self.private_key, self.password)
+        vars1["timestamp"] = ref_time_xml
+        vars1["certificate"] = self.certificate
+        vars1["signed_info"] = signed_info
+
+        wsse = SimpleXMLElement(BIN_TOKEN_TMPL % vars1)
         header.import_node(wsse)
 
     def postprocess(self, client, response, method, args, kwargs, headers, soap_uri):
@@ -211,12 +227,12 @@ class BinaryTokenSignature:
             raise RuntimeError("WSSE certificate validation failed")
         # check body xml attributes was signed correctly (reference)
         self.__check(body['xmlns:wsu'], WSU_URI)
-        ref_uri = body['wsu:Id']
+        #ref_uri = body['wsu:Id']
         signature = wsse("Signature", ns=XMLDSIG_URI)
         signed_info = signature("SignedInfo", ns=XMLDSIG_URI)
         signature_value = signature("SignatureValue", ns=XMLDSIG_URI)
         # TODO: these sanity checks should be moved to xmlsec?
-        self.__check(signed_info("Reference", ns=XMLDSIG_URI)['URI'], "#" + ref_uri)
+        #self.__check(signed_info("Reference", ns=XMLDSIG_URI)['URI'], "#" + ref_uri)
         self.__check(signed_info("SignatureMethod", ns=XMLDSIG_URI)['Algorithm'], 
                      XMLDSIG_URI + "rsa-sha1")
         self.__check(signed_info("Reference", ns=XMLDSIG_URI)("DigestMethod", ns=XMLDSIG_URI)['Algorithm'], 
@@ -227,19 +243,33 @@ class BinaryTokenSignature:
             if attr.startswith("xmlns"):
                 body[attr] = value
         # use the internal tag xml representation (not the full xml document)
-        ref_xml = xmlsec.canonicalize(repr(body))
+        #ref_xml = xmlsec.canonicalize(repr(body))
         # verify the signed hash
-        computed_hash =  xmlsec.sha1_hash_digest(ref_xml)
-        digest_value = str(signed_info("Reference", ns=XMLDSIG_URI)("DigestValue", ns=XMLDSIG_URI))
-        if computed_hash != digest_value:
-            raise RuntimeError("WSSE SHA1 hash digests mismatch")
+        #computed_hash =  xmlsec.sha1_hash_digest(ref_xml)
+        #digest_value = str(signed_info("Reference", ns=XMLDSIG_URI)("DigestValue", ns=XMLDSIG_URI))
+        #if computed_hash != digest_value:
+        #    raise RuntimeError("Body, WSSE SHA1 hash digests mismatch")
+
+        for child in signed_info._element.childNodes:
+            if child.nodeType == 1:
+                if child.getAttribute("URI") != '':
+                    if child.getAttribute("URI")[1:] == response('Timestamp', ns=WSU_URI, )["wsu:Id"]:
+                        ref_timestamp_xml = xmlsec.canonicalize(repr(response('Timestamp', ns=WSU_URI, )))
+                        computed_hash = "<DigestValue>{}</DigestValue>".format(
+                            xmlsec.sha1_hash_digest(ref_timestamp_xml))
+                        digest_value = child.getElementsByTagName("DigestValue")[0].toxml()
+                        #print(computed_hash)
+                        #print(digest_value)
+                        if computed_hash != digest_value:
+                            raise RuntimeError("Timestamp, WSSE SHA1 hash digests mismatch")
+
         # workaround: prepare the signed info (assure the parent ns is present)
-        signed_info['xmlns'] = XMLDSIG_URI
+        #signed_info['xmlns'] = XMLDSIG_URI
         xml = repr(signed_info)
         # verify the signature using RSA-SHA1 (XML Security)
         ok = xmlsec.rsa_verify(xml, str(signature_value), public_key)
         if not ok:
-            raise RuntimeError("WSSE RSA-SHA1 signature verification failed")
+            raise RuntimeError("Signature value, WSSE RSA-SHA1 signature verification failed")
         # TODO: remove any unsigned part from the xml?
         
     def __check(self, value, expected, msg="WSSE sanity check failed"):

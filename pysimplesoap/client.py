@@ -37,6 +37,7 @@ from .helpers import Alias, fetch, sort_dict, make_key, process_element, \
                      get_local_name, get_namespace_prefix, TYPE_MAP, urlsplit
 from .wsse import UsernameToken
 
+logging.basicConfig()
 log = logging.getLogger(__name__)
 
 class SoapFault(RuntimeError):
@@ -152,6 +153,8 @@ class SoapClient(object):
             self.__xml = """<?xml version="1.0" encoding="UTF-8"?>
 <%(soap_ns)s:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+    xmlns:exc14n="http://www.w3.org/2001/10/xml-exc-c14n#"
+    xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"
     xmlns:%(soap_ns)s="%(soap_uri)s">
 <%(soap_ns)s:Header/>
 <%(soap_ns)s:Body>
@@ -256,10 +259,14 @@ class SoapClient(object):
 
         self.xml_request = request.as_xml()
         print(self.xml_request)
+        for plugin in self.plugins:
+            plugin.postprocess(self, request, method, args, kwargs,
+                                     self.__headers, soap_uri)
         self.xml_response = self.send(method, self.xml_request)
-        print(self.xml_response)
+        #print(self.xml_response)
         response = SimpleXMLElement(self.xml_response, namespace=self.namespace,
                                     jetty=self.__soap_server in ('jetty',))
+        #print("****", response)
         if self.exceptions and response("Fault", ns=list(soap_namespaces.values()), error=False):
             detailXml = response("detail", ns=list(soap_namespaces.values()), error=False)
             detail = None
@@ -743,6 +750,7 @@ class SoapClient(object):
                             headers.update(hdr)
                         else:
                             pass # not enough info to search the header message:
+
                     op['input'] = get_message(messages, op['input_msg'], parts_input_body, op['parameter_order'])
                     op['header'] = headers
 

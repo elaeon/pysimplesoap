@@ -34,6 +34,7 @@ SIGN_REF_TMPL = """
   <Reference URI="%(ref_uri)s">
     <Transforms>
       <Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" />
+      <InclusiveNamespaces PrefixList="wsu wsse soapenv" />
     </Transforms>
     <DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1" />
     <DigestValue>%(digest_value)s</DigestValue>
@@ -97,6 +98,7 @@ def canonicalize(xml, c14n_exc=True):
     # UTF8, normalization of line feeds/spaces, quoting, attribute ordering...
     output = StringIO()
     if lxml is not None:
+        #print("1", xml)
         # use faster libxml2 / lxml canonicalization function if available
         et = lxml.etree.parse(StringIO(xml))
         et.write_c14n(output, exclusive=c14n_exc)
@@ -133,6 +135,27 @@ def rsa_sign(xml, ref_uri, private_key, password=None, cert=None, c14n_exc=True,
             'key_info': key_info(pkey, cert, key_info_template),
             }
 
+def rsa_sign_(signed_info, private_key, password=None, cert=None, c14n_exc=True,
+             key_info_template=KEY_INFO_RSA_TMPL):
+    pkey = RSA.load_key(private_key, lambda *args, **kwargs: password)
+    signature = pkey.sign(hashlib.sha1(signed_info).digest())
+    # build the mapping (placeholders) to create the final xml signed message
+    return {
+            'signature_value': base64.b64encode(signature),
+            'key_info': key_info(pkey, cert, key_info_template),
+            }
+
+def _sign_node(stack, ref_uri, xml, c14n_exc=True, sign_template=SIGN_REF_TMPL):
+    # normalize the referenced xml (to compute the SHA1 hash)
+    ref_xml = canonicalize(xml, c14n_exc)
+    # create the signed xml normalized (with the referenced uri and hash value)
+    signed_info = sign_template % {'ref_uri': ref_uri, 
+                                   'digest_value': sha1_hash_digest(ref_xml)}
+    #print(signed_info)
+    #signed_info = canonicalize(signed_info, c14n_exc)
+    #print(signed_info)
+    stack.append(signed_info)
+    return ref_xml
 
 def rsa_verify(xml, signature, key, c14n_exc=True):
     "Verify a XML document signature usign RSA-SHA1, return True if valid"
